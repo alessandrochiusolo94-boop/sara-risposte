@@ -1,0 +1,45 @@
+name: Parola chiave SARA
+
+# Ogni 5 minuti (GitHub può ritardare di qualche minuto nelle ore di punta).
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+    - cron: "17 3 1 * *"   # una volta al mese: tiene vivo l'archivio (GitHub ferma i giri dopo 60 giorni senza attività)
+  workflow_dispatch:
+    inputs:
+      prova:
+        description: "Solo prova (non invia niente)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sara
+  cancel-in-progress: false
+
+jobs:
+  rispondi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Risposte a chi scrive SARA
+        env:
+          META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
+          META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
+          META_IG_USER_ID: ${{ secrets.META_IG_USER_ID }}
+          PROVA: ${{ github.event_name == 'workflow_dispatch' && inputs.prova && '1' || '0' }}
+        run: python sara_parola_chiave.py
+      - name: Tieni vivo l'archivio
+        if: github.event.schedule == '17 3 1 * *'
+        run: |
+          date -u +%Y-%m-%dT%H:%MZ > ultimo_controllo.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ultimo_controllo.txt
+          git commit -m "Controllo mensile" && git push || true
